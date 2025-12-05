@@ -1,0 +1,16 @@
+[project]
+name = "cotlocalization"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "beautifulsoup4>=4.13.4",
+    "emoji>=2.14.1",
+    "loguru>=0.7.3",
+    "numpy>=2.2.6",
+    "python-dotenv>=1.1.1",
+    "rapidfuzz>=3.13.0",
+    "requests>=2.32.4",
+    "ujson>=5.10.0",
+]
