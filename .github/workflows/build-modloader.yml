@@ -338,4 +338,4 @@ jobs:
 
             ModLoader Version: ${{ steps.version.outputs.version }}
           files: ModLoader.Package.zip
-          prerelease: false
+          prerelease: true
