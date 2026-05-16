@@ -21,7 +21,7 @@ on:
         default: false
         type: boolean
   schedule:
-    - cron: '0 */6 * * *'  # 每6小时检查一次（仅检查稳定版）
+    - cron: '0 */6 * * *'
 
 jobs:
   check_update:
@@ -67,126 +67,61 @@ jobs:
           EA_PASSWORD: ${{ github.event.inputs.ea_password }}
         run: |
           python << 'EOF'
-          import os
-          import json
-          import requests
-
-          # 配置
+          import os, json, requests
           STABLE_GAME_ID = "2151565"
           EA_GAME_ID = "2499529"
           UPLOADS_URL = "https://api.itch.io/games/{game_id}/uploads"
           API_KEY = os.environ.get("ITCH_API_KEY", "")
           EA_PASSWORD = os.environ.get("EA_PASSWORD", "")
-
           game_type = os.environ.get("GAME_TYPE", "stable")
           force_update = os.environ.get("FORCE_UPDATE", "false").lower() == "true"
           game_id = EA_GAME_ID if game_type == "ea" else STABLE_GAME_ID
-
           print(f"检查游戏更新: {game_type} (game_id: {game_id})")
-          if force_update:
-              print("⚠️ 强制更新模式已启用")
-
-          if not API_KEY:
-              print("⚠️ 警告: ITCH_API_KEY未设置")
-          
-          if game_type == "ea" and not EA_PASSWORD:
-              print("❌ 错误: EA版需要提供密码")
-              exit(1)
-
-          # 获取上传列表 - 使用Header认证
+          if force_update: print("⚠️ 强制更新模式已启用")
+          if not API_KEY: print("⚠️ 警告: ITCH_API_KEY未设置")
+          if game_type == "ea" and not EA_PASSWORD: print("❌ 错误: EA版需要提供密码"); exit(1)
           url = UPLOADS_URL.format(game_id=game_id)
           headers = {"Authorization": API_KEY} if API_KEY else {}
           params = {"password": EA_PASSWORD} if game_type == "ea" and EA_PASSWORD else {}
-          
-          response = requests.get(url, headers=headers, params=params)
-          response.raise_for_status()
+          response = requests.get(url, headers=headers, params=params); response.raise_for_status()
           data = response.json()
-
-          # 查找HTML channel
-          html_upload = None
-          android_upload = None
+          html_upload = android_upload = None
           for upload in data.get("uploads", []):
               channel = upload.get("channel_name", "")
-              if channel == "html":
-                  html_upload = upload
-              elif channel == "android":
-                  android_upload = upload
-
-          if not html_upload:
-              print("未找到HTML channel")
-              exit(1)
-
+              if channel == "html": html_upload = upload
+              elif channel == "android": android_upload = upload
+          if not html_upload: print("未找到HTML channel"); exit(1)
           upload_id = html_upload.get("id")
           build_info = html_upload.get("build", {})
           build_id = build_info.get("id")
           version = build_info.get("user_version", str(build_info.get("version", "unknown")))
-
-          print(f"HTML Upload ID: {upload_id}")
-          print(f"HTML Build ID: {build_id}")
-          print(f"Version: {version}")
-
-          # Android APK信息
-          android_upload_id = ""
-          android_build_id = ""
+          print(f"HTML Upload ID: {upload_id}\nHTML Build ID: {build_id}\nVersion: {version}")
+          android_upload_id = android_build_id = ""
           if android_upload:
               android_upload_id = str(android_upload.get("id", ""))
               android_build_info = android_upload.get("build", {})
               android_build_id = str(android_build_info.get("id", ""))
-              print(f"Android Upload ID: {android_upload_id}")
-              print(f"Android Build ID: {android_build_id}")
-          else:
-              print("⚠️ 未找到Android channel")
-
-          # 版本缓存文件
+              print(f"Android Upload ID: {android_upload_id}\nAndroid Build ID: {android_build_id}")
+          else: print("⚠️ 未找到Android channel")
           os.makedirs(".version_cache", exist_ok=True)
           version_file = f".version_cache/last_version_{game_type}.json"
-          
-          # 读取上次缓存的版本
-          last_version = None
-          last_build_id = None
+          last_version = last_build_id = None
           if os.path.exists(version_file):
               try:
                   with open(version_file, "r") as f:
-                      cached = json.load(f)
-                      last_version = cached.get("version")
-                      last_build_id = cached.get("build_id")
+                      cached = json.load(f); last_version = cached.get("version"); last_build_id = cached.get("build_id")
                   print(f"上次缓存版本: {last_version} (build_id: {last_build_id})")
-              except Exception as e:
-                  print(f"读取缓存失败: {e}")
-
-          # 检查是否有新版本
+              except Exception as e: print(f"读取缓存失败: {e}")
           has_update = "false"
-          if force_update:
-              has_update = "true"
-              print("✅ 强制更新")
-          elif last_build_id is None:
-              has_update = "true"
-              print("✅ 首次运行，需要更新")
-          elif str(build_id) != str(last_build_id):
-              has_update = "true"
-              print(f"✅ 检测到新版本: {last_version} -> {version}")
-          else:
-              print(f"ℹ️ 版本未变化: {version}")
-
-          # 保存当前版本到缓存
-          with open(version_file, "w") as f:
-              json.dump({
-                  "version": version,
-                  "build_id": build_id,
-                  "upload_id": upload_id
-              }, f)
+          if force_update: has_update = "true"; print("✅ 强制更新")
+          elif last_build_id is None: has_update = "true"; print("✅ 首次运行，需要更新")
+          elif str(build_id) != str(last_build_id): has_update = "true"; print(f"✅ 检测到新版本: {last_version} -> {version}")
+          else: print(f"ℹ️ 版本未变化: {version}")
+          with open(version_file, "w") as f: json.dump({"version": version, "build_id": build_id, "upload_id": upload_id}, f)
           print(f"版本信息已缓存到: {version_file}")
-          
-          # 输出到GitHub Actions
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"has_update={has_update}\n")
-              f.write(f"version={version}\n")
-              f.write(f"upload_id={upload_id}\n")
-              f.write(f"build_id={build_id}\n")
-              f.write(f"game_type={game_type}\n")
-              f.write(f"android_upload_id={android_upload_id}\n")
-              f.write(f"android_build_id={android_build_id}\n")
-          
+              for k, v in [("has_update", has_update), ("version", version), ("upload_id", upload_id), ("build_id", build_id), ("game_type", game_type), ("android_upload_id", android_upload_id), ("android_build_id", android_build_id)]:
+                  f.write(f"{k}={v}\n")
           print(f"\n{'🚀 将执行更新' if has_update == 'true' else '⏭️ 跳过更新'}")
           EOF
 
@@ -209,142 +144,79 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install requests selenium webdriver-manager
-
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@latest
-
       - name: Download HTML file
         shell: bash
         run: |
           python << 'EOF'
-          import os
-          import requests
-
-          upload_id = os.environ["UPLOAD_ID"]
-          build_id = os.environ["BUILD_ID"]
-          version = os.environ["VERSION"]
-
+          import os, requests
+          upload_id = os.environ["UPLOAD_ID"]; build_id = os.environ["BUILD_ID"]; version = os.environ["VERSION"]
           html_url = f"https://html-classic.itch.zone/html/{upload_id}-{build_id}/index.html"
           print(f"下载HTML: {html_url}")
-
-          response = requests.get(html_url, stream=True)
-          response.raise_for_status()
-
+          response = requests.get(html_url, stream=True); response.raise_for_status()
           os.makedirs("temp_update_files", exist_ok=True)
           html_path = f"temp_update_files/index{version}.html"
-          
           with open(html_path, "wb") as f:
-              for chunk in response.iter_content(chunk_size=8192):
-                  f.write(chunk)
-          
+              for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
           print(f"HTML已保存到: {html_path}")
-          
-          # 保存路径供后续步骤使用
-          with open(os.environ["GITHUB_ENV"], "a") as f:
-              f.write(f"HTML_PATH={os.path.abspath(html_path)}\n")
+          with open(os.environ["GITHUB_ENV"], "a") as f: f.write(f"HTML_PATH={os.path.abspath(html_path)}\n")
           EOF
-
       - name: Export story data
         shell: bash
         run: |
           python << 'EOF'
-          import os
-          import time
+          import os, time
           from selenium import webdriver
           from selenium.webdriver.chrome.service import Service as ChromeService
           from webdriver_manager.chrome import ChromeDriverManager
           from selenium.webdriver.common.by import By
           from selenium.webdriver.support.ui import WebDriverWait
           from selenium.webdriver.support import expected_conditions as EC
-
-          html_path = os.environ["HTML_PATH"]
-          version = os.environ["VERSION"]
-          
-          # 检查story-export.js是否存在
+          html_path = os.environ["HTML_PATH"]; version = os.environ["VERSION"]
           js_path = "story-export.js"
-          if not os.path.exists(js_path):
-              print(f"警告: {js_path} 不存在，跳过浏览器自动化步骤")
-              print("请确保story-export.js文件已添加到仓库中")
-              exit(0)
-
-          # 配置Chrome headless
+          if not os.path.exists(js_path): print(f"警告: {js_path} 不存在，跳过"); exit(0)
           options = webdriver.ChromeOptions()
-          options.add_argument("--headless=new")
-          options.add_argument("--no-sandbox")
-          options.add_argument("--disable-dev-shm-usage")
-          options.add_argument("--disable-gpu")
-          
+          options.add_argument("--headless=new"); options.add_argument("--no-sandbox")
+          options.add_argument("--disable-dev-shm-usage"); options.add_argument("--disable-gpu")
           download_dir = os.path.abspath(".")
-          prefs = {
-              "download.default_directory": download_dir,
-              "download.prompt_for_download": False,
-              "download.directory_upgrade": True,
-              "safebrowsing.enabled": True
-          }
+          prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False, "download.directory_upgrade": True, "safebrowsing.enabled": True}
           options.add_experimental_option("prefs", prefs)
-
           driver = None
           try:
               service = ChromeService(ChromeDriverManager().install())
               driver = webdriver.Chrome(service=service, options=options)
-              
-              # headless模式下设置下载行为
-              driver.execute_cdp_cmd("Page.setDownloadBehavior", {
-                  "behavior": "allow",
-                  "downloadPath": download_dir
-              })
-              
+              driver.execute_cdp_cmd("Page.setDownloadBehavior", {"behavior": "allow", "downloadPath": download_dir})
               driver.get("file://" + html_path)
-              
-              WebDriverWait(driver, 10).until(
-                  EC.presence_of_element_located((By.TAG_NAME, "body"))
-              )
+              WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
               print("页面已加载")
-
-              with open(js_path, "r", encoding="utf-8") as f:
-                  js_code = f.read()
-              
-              print("执行导出脚本...")
-              driver.execute_script(js_code)
-              
-              # 等待下载完成
+              with open(js_path, "r", encoding="utf-8") as f: js_code = f.read()
+              print("执行导出脚本..."); driver.execute_script(js_code)
               zip_path = os.path.join(download_dir, "story_export.zip")
-              timeout = 60
-              start_time = time.time()
+              timeout = 60; start_time = time.time()
               while not os.path.exists(zip_path):
                   time.sleep(1)
-                  if time.time() - start_time > timeout:
-                      print("下载超时")
-                      exit(1)
-              
+                  if time.time() - start_time > timeout: print("下载超时"); exit(1)
               print(f"导出完成: {zip_path}")
-
-          except Exception as e:
-              print(f"错误: {e}")
-              exit(1)
+          except Exception as e: print(f"错误: {e}"); exit(1)
           finally:
-              if driver:
-                  driver.quit()
+              if driver: driver.quit()
           EOF
-
       - name: Upload HTML artifact
         uses: actions/upload-artifact@v4
         with:
           name: game-html-${{ env.VERSION }}
           path: temp_update_files/*.html
           if-no-files-found: warn
-
       - name: Upload story export artifact
         uses: actions/upload-artifact@v4
         if: always()
@@ -365,18 +237,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Download HTML artifact
         uses: actions/download-artifact@v4
         with:
           name: game-html-${{ env.VERSION }}
           path: game-html
-
       - name: Use Node.js 18.x
         uses: actions/setup-node@v4
         with:
           node-version: 18.x
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -385,7 +254,7 @@ jobs:
       - name: Download ModLoader Package from release
         shell: bash
         run: |
-          curl -sL -o ModLoader.Package.zip "https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader/releases/latest/download/ModLoader.Package.zip"
+          curl -sL -o ModLoader.Package.zip "https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader/releases/download/2.100.1/ModLoader.Package.zip"
           mkdir -p modloader-download
           unzip -o ModLoader.Package.zip -d modloader-download
           echo "ModLoader Package downloaded and extracted"
@@ -396,38 +265,19 @@ jobs:
         run: |
           Write-Host "=== Downloaded files in modloader-download (top level) ==="
           Get-ChildItem -Path "modloader-download" | ForEach-Object { Write-Host $_.Name }
-          
-          # 检查 dist-insertTools 是否直接在 modloader-download 中
           if (Test-Path "modloader-download/dist-insertTools") {
-            Write-Host ""
             Write-Host "dist-insertTools found directly in modloader-download"
             Write-Host "Renaming modloader-download to ml-package..."
             Rename-Item -Path "modloader-download" -NewName "ml-package"
           } else {
             Write-Host "ERROR: dist-insertTools not found in modloader-download"
-            Write-Host "Full contents:"
             Get-ChildItem -Path "modloader-download" -Recurse | Select-Object -First 50 | ForEach-Object { Write-Host $_.FullName }
             exit 1
           }
-          
-          Write-Host ""
           Write-Host "=== ml-package contents ==="
           Get-ChildItem -Path "ml-package" | ForEach-Object { Write-Host $_.Name }
-          
-          # 验证关键目录
-          if (Test-Path "ml-package/dist-insertTools") {
-            Write-Host "✓ dist-insertTools OK"
-          } else {
-            Write-Host "✗ dist-insertTools MISSING"
-            exit 1
-          }
-          
-          if (Test-Path "ml-package/dist-BeforeSC2") {
-            Write-Host "✓ dist-BeforeSC2 OK"
-          } else {
-            Write-Host "✗ dist-BeforeSC2 MISSING"
-            exit 1
-          }
+          if (Test-Path "ml-package/dist-insertTools") { Write-Host "✓ dist-insertTools OK" } else { Write-Host "✗ dist-insertTools MISSING"; exit 1 }
+          if (Test-Path "ml-package/dist-BeforeSC2") { Write-Host "✓ dist-BeforeSC2 OK" } else { Write-Host "✗ dist-BeforeSC2 MISSING"; exit 1 }
 
       - name: Checkout SugarCube-2
         uses: actions/checkout@v4
@@ -435,136 +285,81 @@ jobs:
           repository: Lyoko-Jeremie/sugarcube-2_Vrelnir
           path: SC2
           ref: TS2
-
       - name: Build SugarCube-2
         working-directory: ${{ github.workspace }}/SC2
         run: |
           npm install
           node build.js -d -u -b 2
-
       - name: Copy SC2 format.js
         shell: bash
         run: |
           cp SC2/build/twine2/sugarcube-2/format.js ml-package/format.js
           echo "Copied format.js to ml-package/"
-          ls -la ml-package/format.js
-
       - name: Get ModLoader version
         id: modloader_version
         shell: bash
         run: |
-          # 从 dist-BeforeSC2/Utils.js 中提取版本号
           UTILS_FILE="ml-package/dist-BeforeSC2/Utils.js"
-          
-          echo "Looking for: $UTILS_FILE"
           if [ -f "$UTILS_FILE" ]; then
-            echo "Found Utils.js"
-            # 提取版本号 - 简化正则
             ML_VERSION=$(grep -oE "[0-9]+\.[0-9]+\.[0-9]+" "$UTILS_FILE" | head -1)
-            echo "Extracted version: $ML_VERSION"
-          else
-            echo "Utils.js not found, searching..."
-            find ml-package -name "Utils.js" -type f
           fi
-          
-          if [ -z "$ML_VERSION" ]; then
-            ML_VERSION="unknown"
-          fi
-          
+          if [ -z "$ML_VERSION" ]; then ML_VERSION="unknown"; fi
           echo "ModLoader Version: $ML_VERSION"
           echo "MODLOADER_VERSION=$ML_VERSION" >> $GITHUB_ENV
-
       - name: Copy modList.json
         shell: bash
-        run: |
-          cp modloader/modList.json ml-package/modList.json
-          echo "Copied modList.json to ml-package/"
-
+        run: cp modloader/modList.json ml-package/modList.json
       - name: Find and set HTML filename
         shell: bash
         run: |
           HTML_FILE=$(ls game-html/*.html | head -1)
-          HTML_BASENAME=$(basename "$HTML_FILE")
           echo "HTML_FILE=$HTML_FILE" >> $GITHUB_ENV
-          echo "HTML_BASENAME=$HTML_BASENAME" >> $GITHUB_ENV
           echo "Found HTML file: $HTML_FILE"
-
       - name: SC2 Replace
         shell: pwsh
         working-directory: ${{ github.workspace }}/ml-package
         run: |
           $htmlPath = "${{ github.workspace }}/${{ env.HTML_FILE }}"
           $formatPath = Get-ChildItem -Path "." -Filter "format.js" -Recurse | Select-Object -First 1
-          if ($formatPath) {
-            Write-Host "Using format.js: $($formatPath.FullName)"
-            node "dist-insertTools/sc2ReplaceTool.js" $htmlPath $formatPath.FullName
-          } else {
-            Write-Host "format.js not found, skipping SC2 replace"
-            Copy-Item $htmlPath "$htmlPath.sc2replace.html"
-          }
-
+          if ($formatPath) { node "dist-insertTools/sc2ReplaceTool.js" $htmlPath $formatPath.FullName }
+          else { Copy-Item $htmlPath "$htmlPath.sc2replace.html" }
       - name: Inject ModLoader
         shell: pwsh
         working-directory: ${{ github.workspace }}/ml-package
         run: |
           $htmlPath = "${{ github.workspace }}/${{ env.HTML_FILE }}.sc2replace.html"
           node "dist-insertTools/insert2html.js" $htmlPath "modList.json" "dist-BeforeSC2/BeforeSC2.js" ""
-
       - name: Inject ModLoader (polyfill)
         shell: pwsh
         working-directory: ${{ github.workspace }}/ml-package
         run: |
           $htmlPath = "${{ github.workspace }}/${{ env.HTML_FILE }}.sc2replace.html"
           $polyfillPath = "dist-BeforeSC2/polyfill.js"
-          if (Test-Path $polyfillPath) {
-            node "dist-insertTools/insert2html-polyfill.js" $htmlPath "modList.json" "dist-BeforeSC2/BeforeSC2.js" $polyfillPath "ManualPolyfill.js"
-          } else {
-            Write-Host "polyfill.js not found, skipping polyfill injection"
-          }
-
+          if (Test-Path $polyfillPath) { node "dist-insertTools/insert2html-polyfill.js" $htmlPath "modList.json" "dist-BeforeSC2/BeforeSC2.js" $polyfillPath "ManualPolyfill.js" }
+          else { Write-Host "polyfill.js not found, skipping" }
       - name: Apply CoT specific patches
         shell: bash
         run: |
           MOD_HTML="${{ env.HTML_FILE }}.sc2replace.html.mod.html"
           POLYFILL_HTML="${{ env.HTML_FILE }}.sc2replace.html.mod-polyfill.html"
-          
-          if [ -f "$MOD_HTML" ]; then
-            python modloader/replace.py "$MOD_HTML"
-          fi
-          
-          if [ -f "$POLYFILL_HTML" ]; then
-            python modloader/replace.py "$POLYFILL_HTML"
-          fi
-
+          if [ -f "$MOD_HTML" ]; then python modloader/replace.py "$MOD_HTML"; fi
+          if [ -f "$POLYFILL_HTML" ]; then python modloader/replace.py "$POLYFILL_HTML"; fi
       - name: Prepare final output
         shell: bash
         run: |
           mkdir -p final-output
-          
           MOD_HTML="${{ env.HTML_FILE }}.sc2replace.html.mod.html"
           POLYFILL_HTML="${{ env.HTML_FILE }}.sc2replace.html.mod-polyfill.html"
-          GAME_VER="${VERSION}"
-          ML_VER="${MODLOADER_VERSION}"
-          
-          if [ -f "$MOD_HTML" ]; then
-            cp "$MOD_HTML" "final-output/CourseOfTemptation-ModLoader-${GAME_VER}-${ML_VER}.html"
-            echo "Created: CourseOfTemptation-ModLoader-${GAME_VER}-${ML_VER}.html"
-          fi
-          
-          if [ -f "$POLYFILL_HTML" ]; then
-            cp "$POLYFILL_HTML" "final-output/CourseOfTemptation-ModLoader-${GAME_VER}-${ML_VER}-polyfill.html"
-            echo "Created: CourseOfTemptation-ModLoader-${GAME_VER}-${ML_VER}-polyfill.html"
-          fi
-          
+          GAME_VER="${VERSION}"; ML_VER="${MODLOADER_VERSION}"
+          if [ -f "$MOD_HTML" ]; then cp "$MOD_HTML" "final-output/CourseOfTemptation-ModLoader-${GAME_VER}-${ML_VER}.html"; fi
+          if [ -f "$POLYFILL_HTML" ]; then cp "$POLYFILL_HTML" "final-output/CourseOfTemptation-ModLoader-${GAME_VER}-${ML_VER}-polyfill.html"; fi
           ls -la final-output/
-
       - name: Upload ModLoader injected HTML
         uses: actions/upload-artifact@v4
         with:
           name: CourseOfTemptation-ModLoader-${{ env.VERSION }}-${{ env.MODLOADER_VERSION }}
           path: final-output/*.html
           if-no-files-found: warn
-
 
   build_android:
     needs: [check_update, inject_modloader]
@@ -580,254 +375,111 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install requests
-          # 安装apktool和Android SDK工具
           sudo apt-get update
           sudo apt-get install -y apktool zipalign apksigner
-
       - name: Download ModLoader HTML artifact
         uses: actions/download-artifact@v4
         with:
           pattern: CourseOfTemptation-ModLoader-*
           path: modloader-html
           merge-multiple: true
-
       - name: Get ModLoader version from artifact
         id: get_ml_version
         shell: bash
         run: |
-          # 从下载的artifact文件名中提取ModLoader版本
           HTML_FILE=$(ls modloader-html/*.html | grep -v polyfill | head -1)
           if [ -n "$HTML_FILE" ]; then
             BASENAME=$(basename "$HTML_FILE" .html)
-            # 文件名格式: CourseOfTemptation-ModLoader-{GAME_VER}-{ML_VER}.html
             ML_VER=$(echo "$BASENAME" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -1)
             echo "MODLOADER_VERSION=$ML_VER" >> $GITHUB_ENV
-            echo "Detected ModLoader version: $ML_VER"
           else
             echo "MODLOADER_VERSION=unknown" >> $GITHUB_ENV
           fi
-
       - name: Download official Android APK
         env:
           ITCH_API_KEY: ${{ secrets.ITCH_API_KEY }}
           EA_PASSWORD: ${{ github.event.inputs.ea_password }}
         run: |
           python << 'EOF'
-          import os
-          import requests
-          
-          upload_id = os.environ["ANDROID_UPLOAD_ID"]
-          build_id = os.environ["ANDROID_BUILD_ID"]
-          api_key = os.environ.get("ITCH_API_KEY", "")
-          ea_password = os.environ.get("EA_PASSWORD", "")
-          game_type = os.environ.get("GAME_TYPE", "stable")
-          
-          # 构建下载URL
-          # itch.io APK下载格式
+          import os, requests
+          upload_id = os.environ["ANDROID_UPLOAD_ID"]; api_key = os.environ.get("ITCH_API_KEY", "")
+          ea_password = os.environ.get("EA_PASSWORD", ""); game_type = os.environ.get("GAME_TYPE", "stable")
           download_url = f"https://api.itch.io/uploads/{upload_id}/download"
-          
           headers = {"Authorization": api_key} if api_key else {}
-          params = {}
-          if game_type == "ea" and ea_password:
-              params["password"] = ea_password
-          
+          params = {"password": ea_password} if game_type == "ea" and ea_password else {}
           print(f"下载Android APK: {download_url}")
-          
-          response = requests.get(download_url, headers=headers, params=params, allow_redirects=True, stream=True)
-          response.raise_for_status()
-          
+          response = requests.get(download_url, headers=headers, params=params, allow_redirects=True, stream=True); response.raise_for_status()
           os.makedirs("apk-download", exist_ok=True)
-          apk_path = "apk-download/original.apk"
-          
-          with open(apk_path, "wb") as f:
-              for chunk in response.iter_content(chunk_size=8192):
-                  f.write(chunk)
-          
-          file_size = os.path.getsize(apk_path)
-          print(f"APK已下载: {apk_path} ({file_size / 1024 / 1024:.2f} MB)")
+          with open("apk-download/original.apk", "wb") as f:
+              for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
+          print(f"APK已下载: apk-download/original.apk ({os.path.getsize('apk-download/original.apk') / 1024 / 1024:.2f} MB)")
           EOF
-
       - name: Extract real APK from downloaded archive
         run: |
-          echo "检查下载的文件..."
           file apk-download/original.apk
-          echo ""
-          echo "尝试列出内容:"
-          unzip -l apk-download/original.apk | head -20
-          echo ""
-          
-          # itch.io下载的是ZIP压缩包，里面包含真正的APK
-          echo "解压外层压缩包..."
-          mkdir -p apk-temp
-          unzip -o apk-download/original.apk -d apk-temp
-          
-          # 找到真正的APK文件
+          mkdir -p apk-temp; unzip -o apk-download/original.apk -d apk-temp
           REAL_APK=$(find apk-temp -name "*.apk" -type f | head -1)
-          if [ -z "$REAL_APK" ]; then
-            echo "❌ 未找到APK文件"
-            ls -la apk-temp/
-            exit 1
-          fi
-          
-          echo "找到真正的APK: $REAL_APK"
+          if [ -z "$REAL_APK" ]; then echo "❌ 未找到APK文件"; exit 1; fi
           mv "$REAL_APK" apk-download/game.apk
           echo "REAL_APK_PATH=apk-download/game.apk" >> $GITHUB_ENV
-          
-          file apk-download/game.apk
-          ls -la apk-download/
-
       - name: Find HTML path in APK
         run: |
-          echo "查找APK内HTML文件位置..."
-          
-          # 列出APK内容，查找HTML文件
-          unzip -l apk-download/game.apk | grep -E "\.html$" | head -10
-          
-          # 获取HTML文件路径
           HTML_PATH_IN_APK=$(unzip -l apk-download/game.apk | grep -oE "[^ ]+index\.html" | head -1)
-          
-          if [ -z "$HTML_PATH_IN_APK" ]; then
-            echo "尝试查找任意html文件..."
-            HTML_PATH_IN_APK=$(unzip -l apk-download/game.apk | grep -oE "[^ ]+\.html" | head -1)
-          fi
-          
-          if [ -z "$HTML_PATH_IN_APK" ]; then
-            echo "❌ 未找到HTML文件"
-            echo "APK内容:"
-            unzip -l apk-download/game.apk
-            exit 1
-          fi
-          
+          if [ -z "$HTML_PATH_IN_APK" ]; then HTML_PATH_IN_APK=$(unzip -l apk-download/game.apk | grep -oE "[^ ]+\.html" | head -1); fi
+          if [ -z "$HTML_PATH_IN_APK" ]; then echo "❌ 未找到HTML文件"; exit 1; fi
           echo "HTML_PATH_IN_APK=$HTML_PATH_IN_APK" >> $GITHUB_ENV
-          echo "APK内HTML路径: $HTML_PATH_IN_APK"
-
       - name: Create modified APKs
         run: |
-          # 找到ModLoader HTML (普通版和polyfill版)
           MOD_HTML=$(ls modloader-html/*.html | grep -v polyfill | head -1)
           POLYFILL_HTML=$(ls modloader-html/*.html | grep polyfill | head -1)
-          
-          echo "ModLoader HTML: $MOD_HTML"
-          echo "Polyfill HTML: $POLYFILL_HTML"
-          echo "APK内HTML路径: $HTML_PATH_IN_APK"
-          
           mkdir -p apk-output
-          
-          # 创建普通版APK
           if [ -n "$MOD_HTML" ]; then
-            echo "创建普通版APK..."
             cp apk-download/game.apk apk-output/mod.apk
-            
-            # 准备替换的HTML文件（需要放在正确的目录结构中）
-            HTML_DIR=$(dirname "$HTML_PATH_IN_APK")
-            mkdir -p "temp-html/$HTML_DIR"
+            HTML_DIR=$(dirname "$HTML_PATH_IN_APK"); mkdir -p "temp-html/$HTML_DIR"
             cp "$MOD_HTML" "temp-html/$HTML_PATH_IN_APK"
-            
-            # 使用zip更新APK内的文件
-            cd temp-html
-            zip -u ../apk-output/mod.apk "$HTML_PATH_IN_APK"
-            cd ..
-            rm -rf temp-html
-            
-            # 删除旧签名
-            zip -d apk-output/mod.apk "META-INF/*" || true
-            
-            echo "普通版APK已创建"
+            cd temp-html; zip -u ../apk-output/mod.apk "$HTML_PATH_IN_APK"; cd ..
+            rm -rf temp-html; zip -d apk-output/mod.apk "META-INF/*" || true
           fi
-          
-          # 创建polyfill版APK
           if [ -n "$POLYFILL_HTML" ]; then
-            echo "创建Polyfill版APK..."
             cp apk-download/game.apk apk-output/polyfill.apk
-            
-            # 准备替换的HTML文件
-            HTML_DIR=$(dirname "$HTML_PATH_IN_APK")
-            mkdir -p "temp-html/$HTML_DIR"
+            HTML_DIR=$(dirname "$HTML_PATH_IN_APK"); mkdir -p "temp-html/$HTML_DIR"
             cp "$POLYFILL_HTML" "temp-html/$HTML_PATH_IN_APK"
-            
-            # 使用zip更新APK内的文件
-            cd temp-html
-            zip -u ../apk-output/polyfill.apk "$HTML_PATH_IN_APK"
-            cd ..
-            rm -rf temp-html
-            
-            # 删除旧签名
-            zip -d apk-output/polyfill.apk "META-INF/*" || true
-            
-            echo "Polyfill版APK已创建"
+            cd temp-html; zip -u ../apk-output/polyfill.apk "$HTML_PATH_IN_APK"; cd ..
+            rm -rf temp-html; zip -d apk-output/polyfill.apk "META-INF/*" || true
           fi
-          
-          ls -la apk-output/
-
       - name: Setup signing keystore
-        run: |
-          # 从 GitHub Secret 解码 keystore
-          echo "${{ secrets.APK_KEYSTORE_BASE64 }}" | base64 -d > signing.keystore
-          echo "Keystore file created"
-
+        run: echo "${{ secrets.APK_KEYSTORE_BASE64 }}" | base64 -d > signing.keystore
       - name: Sign APKs
         run: |
           mkdir -p apk-signed
-          
-          KEYSTORE_FILE="signing.keystore"
-          KEYSTORE_PASS="${{ secrets.APK_KEYSTORE_PASSWORD }}"
-          KEY_ALIAS="${{ secrets.APK_KEY_ALIAS }}"
-          KEY_PASS="${{ secrets.APK_KEY_PASSWORD }}"
-          
-          echo "✅ 使用配置的固定签名密钥"
-          
-          # 处理普通版
           if [ -f "apk-output/mod.apk" ]; then
-            echo "签名普通版APK..."
-            # zipalign
             zipalign -v 4 apk-output/mod.apk apk-output/aligned-mod.apk
-            # 签名
-            apksigner sign --ks "$KEYSTORE_FILE" --ks-pass "pass:$KEYSTORE_PASS" --ks-key-alias "$KEY_ALIAS" --key-pass "pass:$KEY_PASS" --out "apk-signed/CoT-ModLoader-${VERSION}-${MODLOADER_VERSION}.apk" apk-output/aligned-mod.apk
+            apksigner sign --ks signing.keystore --ks-pass "pass:${{ secrets.APK_KEYSTORE_PASSWORD }}" --ks-key-alias "${{ secrets.APK_KEY_ALIAS }}" --key-pass "pass:${{ secrets.APK_KEY_PASSWORD }}" --out "apk-signed/CoT-ModLoader-${VERSION}-${MODLOADER_VERSION}.apk" apk-output/aligned-mod.apk
           fi
-          
-          # 处理polyfill版
           if [ -f "apk-output/polyfill.apk" ]; then
-            echo "签名Polyfill版APK..."
-            # zipalign
             zipalign -v 4 apk-output/polyfill.apk apk-output/aligned-polyfill.apk
-            # 签名
-            apksigner sign --ks "$KEYSTORE_FILE" --ks-pass "pass:$KEYSTORE_PASS" --ks-key-alias "$KEY_ALIAS" --key-pass "pass:$KEY_PASS" --out "apk-signed/CoT-ModLoader-${VERSION}-${MODLOADER_VERSION}-polyfill.apk" apk-output/aligned-polyfill.apk
+            apksigner sign --ks signing.keystore --ks-pass "pass:${{ secrets.APK_KEYSTORE_PASSWORD }}" --ks-key-alias "${{ secrets.APK_KEY_ALIAS }}" --key-pass "pass:${{ secrets.APK_KEY_PASSWORD }}" --out "apk-signed/CoT-ModLoader-${VERSION}-${MODLOADER_VERSION}-polyfill.apk" apk-output/aligned-polyfill.apk
           fi
-          
-          echo "APK签名完成"
           ls -la apk-signed/
-          
-          # 验证签名
-          echo ""
-          echo "验证APK签名..."
-          for apk in apk-signed/*.apk; do
-            echo "验证: $apk"
-            apksigner verify --verbose "$apk" || true
-          done
-
       - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: CoT-Android-ModLoader-${{ env.VERSION }}-${{ env.MODLOADER_VERSION }}
           path: apk-signed/*.apk
           if-no-files-found: error
-
 
   build_image_pack:
     needs: [check_update]
@@ -843,118 +495,55 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Use Node.js 18.x
         uses: actions/setup-node@v4
         with:
           node-version: 18.x
-
       - name: Enable Corepack
         run: corepack enable
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install requests
-
       - name: Download official Android APK
         env:
           ITCH_API_KEY: ${{ secrets.ITCH_API_KEY }}
           EA_PASSWORD: ${{ github.event.inputs.ea_password }}
         run: |
           python << 'EOF'
-          import os
-          import requests
-          
-          upload_id = os.environ["ANDROID_UPLOAD_ID"]
-          build_id = os.environ["ANDROID_BUILD_ID"]
-          api_key = os.environ.get("ITCH_API_KEY", "")
-          ea_password = os.environ.get("EA_PASSWORD", "")
-          game_type = os.environ.get("GAME_TYPE", "stable")
-          
+          import os, requests
+          upload_id = os.environ["ANDROID_UPLOAD_ID"]; api_key = os.environ.get("ITCH_API_KEY", "")
+          ea_password = os.environ.get("EA_PASSWORD", ""); game_type = os.environ.get("GAME_TYPE", "stable")
           download_url = f"https://api.itch.io/uploads/{upload_id}/download"
-          
           headers = {"Authorization": api_key} if api_key else {}
-          params = {}
-          if game_type == "ea" and ea_password:
-              params["password"] = ea_password
-          
+          params = {"password": ea_password} if game_type == "ea" and ea_password else {}
           print(f"下载Android APK: {download_url}")
-          
-          response = requests.get(download_url, headers=headers, params=params, allow_redirects=True, stream=True)
-          response.raise_for_status()
-          
+          response = requests.get(download_url, headers=headers, params=params, allow_redirects=True, stream=True); response.raise_for_status()
           os.makedirs("apk-download", exist_ok=True)
-          apk_path = "apk-download/original.apk"
-          
-          with open(apk_path, "wb") as f:
-              for chunk in response.iter_content(chunk_size=8192):
-                  f.write(chunk)
-          
-          file_size = os.path.getsize(apk_path)
-          print(f"APK已下载: {apk_path} ({file_size / 1024 / 1024:.2f} MB)")
+          with open("apk-download/original.apk", "wb") as f:
+              for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
+          print(f"APK已下载 ({os.path.getsize('apk-download/original.apk') / 1024 / 1024:.2f} MB)")
           EOF
-
       - name: Extract APK and get res directory
         run: |
-          echo "检查下载的文件..."
           file apk-download/original.apk
-          
-          # itch.io下载的是ZIP压缩包，里面包含真正的APK
-          echo "解压外层压缩包..."
-          mkdir -p apk-temp
-          unzip -o apk-download/original.apk -d apk-temp
-          
-          # 找到真正的APK文件
+          mkdir -p apk-temp; unzip -o apk-download/original.apk -d apk-temp
           REAL_APK=$(find apk-temp -name "*.apk" -type f | head -1)
-          if [ -z "$REAL_APK" ]; then
-            echo "❌ 未找到APK文件"
-            ls -la apk-temp/
-            exit 1
-          fi
-          
-          echo "找到真正的APK: $REAL_APK"
-          
-          # 解压APK获取res目录
-          echo "解压APK..."
-          mkdir -p apk-contents
-          unzip -o "$REAL_APK" -d apk-contents
-          
-          # 查找res目录（CoT游戏的资源路径）
-          echo "查找res目录..."
+          if [ -z "$REAL_APK" ]; then echo "❌ 未找到APK文件"; exit 1; fi
+          mkdir -p apk-contents; unzip -o "$REAL_APK" -d apk-contents
           RES_DIR=$(find apk-contents -type d -name "res" -path "*assets*" | head -1)
-          
-          if [ -z "$RES_DIR" ]; then
-            echo "尝试其他路径..."
-            RES_DIR=$(find apk-contents -type d -path "*/www/res" | head -1)
-          fi
-          
-          if [ -z "$RES_DIR" ]; then
-            echo "❌ 未找到res目录"
-            echo "APK内容结构:"
-            find apk-contents -type d | head -50
-            exit 1
-          fi
-          
-          echo "找到res目录: $RES_DIR"
-          
-          # 复制res目录
-          mkdir -p game-res
-          cp -r "$RES_DIR" game-res/
-          
-          echo "res目录内容:"
-          ls -la game-res/res/ | head -20
-          echo ""
-          echo "总图片文件数: $(find game-res -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.gif" -o -name "*.webp" \) | wc -l)"
+          if [ -z "$RES_DIR" ]; then RES_DIR=$(find apk-contents -type d -path "*/www/res" | head -1); fi
+          if [ -z "$RES_DIR" ]; then echo "❌ 未找到res目录"; exit 1; fi
+          mkdir -p game-res; cp -r "$RES_DIR" game-res/
+          echo "总图片文件数: $(find game-res -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.gif' -o -name '*.webp' \) | wc -l)"
 
       - name: Download ModLoader Package from release
         run: |
-          curl -sL -o ModLoader.Package.zip "https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader/releases/latest/download/ModLoader.Package.zip"
+          curl -sL -o ModLoader.Package.zip "https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader/releases/download/2.100.1/ModLoader.Package.zip"
           mkdir -p ModLoader
           unzip -o ModLoader.Package.zip -d ModLoader
           echo "ModLoader Package downloaded and extracted"
@@ -962,22 +551,14 @@ jobs:
 
       - name: Verify ModLoader structure
         run: |
-          echo "=== ModLoader contents ==="
-          ls -la ModLoader/ | head -20
-          
-          if [ ! -d "ModLoader/dist-insertTools" ]; then
-            echo "ERROR: dist-insertTools not found"
-            exit 1
-          fi
+          if [ ! -d "ModLoader/dist-insertTools" ]; then echo "ERROR: dist-insertTools not found"; exit 1; fi
           echo "✓ ModLoader structure OK"
-
       - name: Checkout GameOriginalImagePackMod
         uses: actions/checkout@v4
         with:
           repository: Lyoko-Jeremie/GameOriginalImagePackMod
           path: ModLoader/mod/GameOriginalImagePack
           ref: master
-
       - name: Build GameOriginalImagePack
         working-directory: ${{ github.workspace }}/ModLoader/mod/GameOriginalImagePack
         run: |
@@ -985,65 +566,22 @@ jobs:
           yarn run build:ts
           yarn run build:webpack
           yarn run build:tools
-
       - name: Copy res to GameOriginalImagePack
-        run: |
-          echo "Copying res directory to GameOriginalImagePack..."
-          # 复制res目录（CoT的路径是res/img/xxx.png）
-          cp -r game-res/res ModLoader/mod/GameOriginalImagePack/
-          echo "res目录已复制"
-          ls -la ModLoader/mod/GameOriginalImagePack/
-          echo ""
-          echo "res/img内容:"
-          ls -la ModLoader/mod/GameOriginalImagePack/res/img/ 2>/dev/null | head -10
-
+        run: cp -r game-res/res ModLoader/mod/GameOriginalImagePack/
       - name: Generate boot.json for CoT
         working-directory: ${{ github.workspace }}/ModLoader/mod/GameOriginalImagePack
         run: |
-          echo "Game Version: $VERSION"
-          
-          # 使用本地 Python 脚本生成 boot.json
-          # 扫描 res 目录，生成 res/img/xxx.png 格式的路径
-          # --extras 会包含样式、脚本等额外文件
           python "${{ github.workspace }}/scripts/generate_image_pack_boot.py" "res" "$VERSION" "boot.json" --extras
-          
-          echo ""
-          echo "boot.json content (前50行):"
           head -50 boot.json
-          echo "..."
-          echo "boot.json content (后10行):"
-          tail -10 boot.json
-
       - name: Pack mod zip
         working-directory: ${{ github.workspace }}/ModLoader/mod/GameOriginalImagePack
-        run: |
-          echo "Packing mod..."
-          node "${{ github.workspace }}/ModLoader/dist-insertTools/packModZip.js" "boot.json"
-          
-          echo "Mod package created:"
-          ls -la *.mod.zip 2>/dev/null || ls -la *.zip 2>/dev/null || echo "No zip files found"
-
+        run: node "${{ github.workspace }}/ModLoader/dist-insertTools/packModZip.js" "boot.json"
       - name: Prepare output
         run: |
           mkdir -p image-pack-output
-          
-          # 查找生成的mod.zip文件
           MOD_FILE=$(find ModLoader/mod/GameOriginalImagePack -name "*.mod.zip" -type f | head -1)
-          if [ -z "$MOD_FILE" ]; then
-            MOD_FILE=$(find ModLoader/mod/GameOriginalImagePack -name "*.zip" -type f | head -1)
-          fi
-          
-          if [ -n "$MOD_FILE" ]; then
-            cp "$MOD_FILE" "image-pack-output/GameOriginalImagePack-${VERSION}.mod.zip"
-            echo "Created: GameOriginalImagePack-${VERSION}.mod.zip"
-          else
-            echo "❌ No mod zip file found"
-            find ModLoader/mod/GameOriginalImagePack -type f -name "*.zip"
-            exit 1
-          fi
-          
-          ls -la image-pack-output/
-
+          if [ -z "$MOD_FILE" ]; then MOD_FILE=$(find ModLoader/mod/GameOriginalImagePack -name "*.zip" -type f | head -1); fi
+          if [ -n "$MOD_FILE" ]; then cp "$MOD_FILE" "image-pack-output/GameOriginalImagePack-${VERSION}.mod.zip"; else echo "❌ No mod zip"; exit 1; fi
       - name: Upload GameOriginalImagePack artifact
         uses: actions/upload-artifact@v4
         with:
@@ -1051,7 +589,6 @@ jobs:
           path: image-pack-output/*.mod.zip
           if-no-files-found: error
 
-  # 统一发布所有构建产物
   release_all:
     needs: [check_update, inject_modloader, build_android, build_image_pack]
     if: always() && needs.check_update.outputs.has_update == 'true'
@@ -1066,7 +603,6 @@ jobs:
         with:
           path: all-artifacts
           merge-multiple: false
-
       - name: Download ModI18N from build-i18n workflow
         uses: dawidd6/action-download-artifact@v3
         with:
@@ -1079,77 +615,28 @@ jobs:
           path: i18n-artifact
           search_artifacts: true
         continue-on-error: true
-
       - name: Prepare release files
         run: |
-          mkdir -p release-files
-          mkdir -p html-temp
-          
-          echo "=== Downloaded artifacts ==="
-          find all-artifacts -type f | head -50
-          
-          # 复制所有 HTML 文件到临时目录
+          mkdir -p release-files html-temp
           find all-artifacts -name "*.html" -exec cp {} html-temp/ \;
-          
-          # 从文件名提取 ModLoader 版本
           HTML_FILE=$(ls html-temp/*.html 2>/dev/null | grep -v polyfill | head -1)
           POLYFILL_FILE=$(ls html-temp/*.html 2>/dev/null | grep polyfill | head -1)
-          
           if [ -n "$HTML_FILE" ]; then
-            BASENAME=$(basename "$HTML_FILE" .html)
-            ML_VER=$(echo "$BASENAME" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -1)
+            ML_VER=$(basename "$HTML_FILE" .html | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -1)
             echo "MODLOADER_VERSION=$ML_VER" >> $GITHUB_ENV
-            echo "Detected ModLoader version: $ML_VER"
           else
-            ML_VER="unknown"
-            echo "MODLOADER_VERSION=unknown" >> $GITHUB_ENV
+            ML_VER="unknown"; echo "MODLOADER_VERSION=unknown" >> $GITHUB_ENV
           fi
-          
-          # 处理 VERSION：如果已经有 v 前缀则不加，否则加上
-          # VERSION 可能是 "v0.7.4d" 或 "0.7.4d"
-          GAME_VER="${VERSION}"
-          if [[ "$GAME_VER" != v* ]]; then
-            GAME_VER="v${GAME_VER}"
-          fi
-          
-          # 将普通版 HTML 打包为 zip
-          if [ -n "$HTML_FILE" ]; then
-            ZIP_NAME="CoT-ModLoader-${GAME_VER}-v${ML_VER}.zip"
-            cd html-temp
-            zip "../release-files/${ZIP_NAME}" "$(basename "$HTML_FILE")"
-            cd ..
-            echo "Created standard HTML zip: ${ZIP_NAME}"
-          fi
-          
-          # 将 polyfill 版 HTML 打包为 zip
-          if [ -n "$POLYFILL_FILE" ]; then
-            ZIP_NAME="CoT-ModLoader-${GAME_VER}-v${ML_VER}-polyfill.zip"
-            cd html-temp
-            zip "../release-files/${ZIP_NAME}" "$(basename "$POLYFILL_FILE")"
-            cd ..
-            echo "Created polyfill HTML zip: ${ZIP_NAME}"
-          fi
-          
-          # 复制所有 APK 文件
+          GAME_VER="${VERSION}"; [[ "$GAME_VER" != v* ]] && GAME_VER="v${GAME_VER}"
+          if [ -n "$HTML_FILE" ]; then cd html-temp; zip "../release-files/CoT-ModLoader-${GAME_VER}-v${ML_VER}.zip" "$(basename "$HTML_FILE")"; cd ..; fi
+          if [ -n "$POLYFILL_FILE" ]; then cd html-temp; zip "../release-files/CoT-ModLoader-${GAME_VER}-v${ML_VER}-polyfill.zip" "$(basename "$POLYFILL_FILE")"; cd ..; fi
           find all-artifacts -name "*.apk" -exec cp {} release-files/ \;
-          
-          # 复制所有 mod.zip 文件
           find all-artifacts -name "*.mod.zip" -exec cp {} release-files/ \;
-          
-          # 复制 ModI18N 文件（如果存在）
-          if [ -d "i18n-artifact" ]; then
-            find i18n-artifact -name "*.mod.zip" -exec cp {} release-files/ \;
-            echo "ModI18N files copied"
-          fi
-          
-          echo "=== Release files ==="
+          if [ -d "i18n-artifact" ]; then find i18n-artifact -name "*.mod.zip" -exec cp {} release-files/ \;; fi
           ls -la release-files/
-
       - name: Get current date
         id: date
-        shell: bash
         run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
-
       - name: Create unified release
         uses: softprops/action-gh-release@v1
         with:
@@ -1158,28 +645,28 @@ jobs:
           tag_name: ${{ env.VERSION }}
           body: |
             ## Course of Temptation ModLoader Release
-            
+
             **Game Version:** ${{ env.VERSION }}
             **ModLoader Version:** ${{ env.MODLOADER_VERSION }}
             **Build Date:** ${{ steps.date.outputs.date }}
-            
+
             ### 📦 包含内容
-            
+
             #### HTML 版本
             - `CoT-ModLoader-v*-v*.zip` - 标准版 HTML
             - `CoT-ModLoader-v*-v*-polyfill.zip` - 兼容版 HTML（适用于旧浏览器）
-            
+
             #### Android APK
             - `CoT-ModLoader-*.apk` - 标准版 APK
             - `CoT-ModLoader-*-polyfill.apk` - 兼容版 APK
-            
+
             ⚠️ APK 使用 debug 签名，可能需要先卸载原版应用再安装
-            
+
             #### 原版图包
             - `GameOriginalImagePack-*.mod.zip` - 原版游戏图片包
-            
+
             需要 ModLoader DoL ImageLoaderHook 才能使用图片包
-            
+
             #### 汉化包
             - `ModI18N-*.mod.zip` - 中文汉化包（如果可用）
           prerelease: true
