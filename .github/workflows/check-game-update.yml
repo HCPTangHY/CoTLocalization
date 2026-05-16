@@ -382,16 +382,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download ModLoader Package from workflow artifact
-        uses: dawidd6/action-download-artifact@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repo: Lyoko-Jeremie/sugarcube-2-ModLoader
-          workflow: Build-ModLoader-Package.yml
-          workflow_conclusion: success
-          name: ModLoader Package
-          path: modloader-download
-          search_artifacts: true
+      - name: Download ModLoader Package from release
+        shell: bash
+        run: |
+          curl -sL -o ModLoader.Package.zip "https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader/releases/latest/download/ModLoader.Package.zip"
+          mkdir -p modloader-download
+          unzip -o ModLoader.Package.zip -d modloader-download
+          echo "ModLoader Package downloaded and extracted"
+          ls modloader-download/ | head -10
 
       - name: Setup ModLoader Package
         shell: pwsh
@@ -954,16 +952,13 @@ jobs:
           echo ""
           echo "总图片文件数: $(find game-res -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.gif" -o -name "*.webp" \) | wc -l)"
 
-      - name: Download ModLoader Package
-        uses: dawidd6/action-download-artifact@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repo: Lyoko-Jeremie/sugarcube-2-ModLoader
-          workflow: Build-ModLoader-Package.yml
-          workflow_conclusion: success
-          name: ModLoader Package
-          path: ModLoader
-          search_artifacts: true
+      - name: Download ModLoader Package from release
+        run: |
+          curl -sL -o ModLoader.Package.zip "https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader/releases/latest/download/ModLoader.Package.zip"
+          mkdir -p ModLoader
+          unzip -o ModLoader.Package.zip -d ModLoader
+          echo "ModLoader Package downloaded and extracted"
+          ls ModLoader/ | head -10
 
       - name: Verify ModLoader structure
         run: |
