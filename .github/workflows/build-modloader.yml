@@ -313,9 +313,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Delete previous modloader-* releases to keep only the latest
-          gh release list --limit 50 --json tagName -q '.[].tagName' | grep '^modloader-' | while read tag; do
+          # Must use -R to target own repo since checkout is upstream
+          gh release list -R "${{ github.repository }}" --limit 50 --json tagName -q '.[].tagName' | grep '^modloader-' | while read tag; do
             echo "Deleting old release: $tag"
-            gh release delete "$tag" -y --cleanup-tag || true
+            gh release delete "$tag" -R "${{ github.repository }}" -y --cleanup-tag || true
           done
 
       - name: Create release
