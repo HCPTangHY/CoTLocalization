@@ -217,13 +217,40 @@ jobs:
           path: ModLoader/mod/i18n/ModI18N*.mod.zip
           if-no-files-found: error
 
+      - name: Cleanup old nightly releases
+        if: github.event_name == 'schedule'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Keep nightly on a fixed tag so scheduled builds replace one release instead of creating a new tag every day.
+          # gh release delete --cleanup-tag removes both the old release and its git tag ref before action-gh-release recreates it.
+          NIGHTLY_TAG="${{ env.GAME_VERSION }}-chs-auto-nightly"
+          gh release delete "$NIGHTLY_TAG" -y --cleanup-tag 2>/dev/null || true
+
+      - name: Cleanup old manual releases
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Manual releases keep a sha-specific tag, so this removes older manual tags for the same game version before publishing the new one.
+          # The final fallback keeps this cleanup step successful when there are no previous manual releases to delete.
+          gh release list --limit 50 --json tagName -q '.[].tagName' \
+            | grep "^${{ env.GAME_VERSION }}-chs-" \
+            | grep -v 'auto-nightly' \
+            | while read tag; do
+                echo "Deleting old release: $tag"
+                gh release delete "$tag" -y --cleanup-tag || true
+              done || true
+
       - name: Release i18n Mod (Nightly)
         uses: softprops/action-gh-release@v1
         if: github.event_name == 'schedule'
         with:
           files: ModLoader/mod/i18n/ModI18N-${{ env.GAME_VERSION }}-chs-${{ env.CHINESE_VERSION }}.mod.zip
-          name: Auto Release nightly v${{ env.GAME_VERSION }}-chs-${{ env.CHINESE_VERSION }}-auto-${{ steps.date.outputs.date }}
-          tag_name: ${{ env.GAME_VERSION }}-chs-${{ env.CHINESE_VERSION }}-auto-${{ steps.date.outputs.date }}-${{ github.sha }}
+          name: Release v${{ env.GAME_VERSION }}-chs-${{ env.CHINESE_VERSION }}-auto-nightly
+          tag_name: ${{ env.GAME_VERSION }}-chs-auto-nightly
           body: Scheduled task on ${{ steps.date.outputs.date }}
           prerelease: true
 
