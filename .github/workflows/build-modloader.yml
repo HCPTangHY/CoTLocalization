@@ -1,0 +1,87 @@
+name: Build ModLoader Package
+
+# Build a fresh ModLoader package in this repository because upstream artifacts expire
+# and the upstream release can lag behind the current ModLoader master branch.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to build (branch/tag/sha)'
+        required: false
+        default: 'master'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ModLoader source
+        uses: actions/checkout@v4
+        with:
+          repository: Lyoko-Jeremie/sugarcube-2-ModLoader
+          ref: ${{ github.event.inputs.ref || 'master' }}
+          submodules: recursive
+
+      - name: Use Node.js 18.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Build ModLoader
+        run: |
+          # Keep the upstream core build sequence intact so the packaged files match
+          # what ModLoader's own workflow generates, without building unrelated mods.
+          yarn install
+          yarn run ts:BeforeSC2
+          yarn run webpack:BeforeSC2
+          yarn run webpack:BeforeSC2-comp
+          yarn run ts:ForSC2
+          yarn run webpack:insertTools
+          yarn run tras:babel
+
+      - name: Prepare package
+        run: |
+          # Package only the core ModLoader outputs needed by CoTLocalization workflows.
+          mkdir -p package
+          cp -r dist-BeforeSC2 package/
+          cp -r dist-BeforeSC2-comp package/
+          cp -r dist-BeforeSC2-comp-babel package/
+          cp -r dist-ForSC2 package/
+          cp -r dist-insertTools package/
+          cp -f ManualPolyfill.js package/ 2>/dev/null || true
+          cp -f README.md package/ 2>/dev/null || true
+
+      - name: Get ModLoader version
+        id: version
+        run: |
+          # Derive the release tag from the built Utils.js so consumers can select
+          # the latest modloader-* release instead of depending on expiring artifacts.
+          UTILS_FILE="dist-BeforeSC2/Utils.js"
+          ML_VERSION="unknown"
+          if [ -f "$UTILS_FILE" ]; then
+            ML_VERSION=$(grep -oE "[0-9]+\.[0-9]+\.[0-9]+" "$UTILS_FILE" | head -1)
+          fi
+          echo "version=$ML_VERSION" >> $GITHUB_OUTPUT
+          echo "ModLoader Version: $ML_VERSION"
+
+      - name: Create zip
+        run: |
+          cd package
+          zip -r ../ModLoader.Package.zip .
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: modloader-${{ steps.version.outputs.version }}
+          name: ModLoader Package ${{ steps.version.outputs.version }}
+          body: |
+            Built from [Lyoko-Jeremie/sugarcube-2-ModLoader](https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader) @ `${{ github.event.inputs.ref || 'master' }}`
+
+            ModLoader Version: ${{ steps.version.outputs.version }}
+          files: ModLoader.Package.zip
+          prerelease: false
