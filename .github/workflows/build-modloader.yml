@@ -1,7 +1,5 @@
 name: Build ModLoader Package
 
-# Build a fresh ModLoader package in this repository because upstream artifacts expire
-# and the upstream release can lag behind the current ModLoader master branch.
 on:
   workflow_dispatch:
     inputs:
@@ -10,12 +8,11 @@ on:
         required: false
         default: 'master'
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout ModLoader source
         uses: actions/checkout@v4
@@ -32,10 +29,8 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Build ModLoader
+      - name: Build ModLoader Core
         run: |
-          # Keep the upstream core build sequence intact so the packaged files match
-          # what ModLoader's own workflow generates, without building unrelated mods.
           yarn install
           yarn run ts:BeforeSC2
           yarn run webpack:BeforeSC2
@@ -44,23 +39,261 @@ jobs:
           yarn run webpack:insertTools
           yarn run tras:babel
 
-      - name: Prepare package
+      # ModLoaderGui needs ModSubUiAngularJs types, so build it first
+      - name: Build ModSubUiAngularJs
+        working-directory: mod/ModSubUiAngularJs
         run: |
-          # Package only the core ModLoader outputs needed by CoTLocalization workflows.
-          mkdir -p package
-          cp -r dist-BeforeSC2 package/
-          cp -r dist-BeforeSC2-comp package/
-          cp -r dist-BeforeSC2-comp-babel package/
-          cp -r dist-ForSC2 package/
-          cp -r dist-insertTools package/
-          cp -f ManualPolyfill.js package/ 2>/dev/null || true
-          cp -f README.md package/ 2>/dev/null || true
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build ModLoaderGui
+        working-directory: mod/ModLoaderGui
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build ImageLoaderHook
+        working-directory: mod/ImageLoaderHook
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          yarn run build-core:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot-core.json"
+
+      - name: Build ReplacePatch
+        working-directory: mod/ReplacePatch
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      # TweeReplacerLinker must build before TweeReplacer and I18nTweeReplacer
+      - name: Build TweeReplacerLinker
+        working-directory: mod/TweeReplacerLinker
+        run: |
+          yarn install
+          yarn run ts:type
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build TweeReplacer
+        working-directory: mod/TweeReplacer
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build I18nTweeReplacer
+        working-directory: mod/I18nTweeReplacer
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build CheckDoLCompressorDictionaries
+        working-directory: mod/CheckDoLCompressorDictionaries
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build CheckGameVersion
+        working-directory: mod/CheckGameVersion
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build CheckGameVersionCot
+        working-directory: mod/CheckGameVersionCot
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build Diff3WayMerge
+        working-directory: mod/Diff3WayMerge
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build DoLTimeWrapperAddon
+        working-directory: mod/DoLTimeWrapperAddon
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build ModdedClothesAddon
+        working-directory: mod/ModdedClothesAddon
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build ModdedFeatsAddon
+        working-directory: mod/ModdedFeatsAddon
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build ModdedHairAddon
+        working-directory: mod/ModdedHairAddon
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build ConflictChecker
+        working-directory: mod/ConflictChecker
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build I18nTweeList
+        working-directory: mod/I18nTweeList
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build I18nScriptList
+        working-directory: mod/I18nScriptList
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build TweePrefixPostfixAddon
+        working-directory: mod/TweePrefixPostfixAddon
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build SweetAlert2Mod
+        working-directory: mod/SweetAlert2Mod
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build ModuleCssReplacer
+        working-directory: mod/ModuleCssReplacer
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build BeautySelectorAddon
+        working-directory: mod/BeautySelectorAddon
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build DoLHookWidget
+        working-directory: mod/DoLHookWidget
+        run: |
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build DoLLinkButtonFilter
+        working-directory: mod/DoLLinkButtonFilter
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build HookMacroRng
+        working-directory: mod/HookMacroRng
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Build ImageLoaderHook2BeautySelectorAddon
+        working-directory: mod/ImageLoaderHook2BeautySelectorAddon
+        run: |
+          yarn install
+          yarn run build:ts
+          yarn run build:webpack
+          node "${{ github.workspace }}/dist-insertTools/packModZip.js" "boot.json"
+
+      - name: Assemble package
+        run: |
+          mkdir -p out
+
+          # Copy core dist directories
+          cp -r dist-BeforeSC2 out/
+          cp -r dist-BeforeSC2-comp out/
+          cp -r dist-BeforeSC2-comp-babel out/
+          cp -r dist-ForSC2 out/
+          cp -r dist-insertTools out/
+          cp -f ManualPolyfill.js out/ 2>/dev/null || true
+          cp -f README.md out/ 2>/dev/null || true
+
+          # Copy mod zips
+          find mod -name "*.mod.zip" -exec cp {} out/ \;
+
+          # Copy mod dist-for-type directories
+          for moddir in mod/*/; do
+            modname=$(basename "$moddir")
+            if [ -d "$moddir/dist" ]; then
+              mkdir -p "out/mod-dist/$modname/dist"
+              cp -r "$moddir/dist/"* "out/mod-dist/$modname/dist/"
+            fi
+            if [ -d "$moddir/dist-ts" ]; then
+              mkdir -p "out/mod-dist/$modname/dist-ts"
+              cp -r "$moddir/dist-ts/"* "out/mod-dist/$modname/dist-ts/"
+            fi
+            if [ -d "$moddir/dist-tools" ]; then
+              mkdir -p "out/mod-dist/$modname/dist-tools"
+              cp -r "$moddir/dist-tools/"* "out/mod-dist/$modname/dist-tools/"
+            fi
+            if [ -d "$moddir/dist-tool" ]; then
+              mkdir -p "out/mod-dist/$modname/dist-tool"
+              cp -r "$moddir/dist-tool/"* "out/mod-dist/$modname/dist-tool/"
+            fi
+          done
+
+          echo "=== Package contents ==="
+          find out -maxdepth 2 -type f | head -50
+          echo "..."
+          echo "Total files: $(find out -type f | wc -l)"
 
       - name: Get ModLoader version
         id: version
         run: |
-          # Derive the release tag from the built Utils.js so consumers can select
-          # the latest modloader-* release instead of depending on expiring artifacts.
           UTILS_FILE="dist-BeforeSC2/Utils.js"
           ML_VERSION="unknown"
           if [ -f "$UTILS_FILE" ]; then
@@ -71,10 +304,21 @@ jobs:
 
       - name: Create zip
         run: |
-          cd package
+          cd out
           zip -r ../ModLoader.Package.zip .
 
-      - name: Create or update release
+      - name: Delete old modloader releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Delete previous modloader-* releases to keep only the latest
+          gh release list --limit 50 --json tagName -q '.[].tagName' | grep '^modloader-' | while read tag; do
+            echo "Deleting old release: $tag"
+            gh release delete "$tag" -y --cleanup-tag || true
+          done
+
+      - name: Create release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: modloader-${{ steps.version.outputs.version }}
