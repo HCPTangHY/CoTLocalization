@@ -261,9 +261,16 @@ jobs:
           cp -r dist-insertTools out/
           cp -f ManualPolyfill.js out/ 2>/dev/null || true
           cp -f README.md out/ 2>/dev/null || true
+          cp -f modList.json out/ 2>/dev/null || true
 
-          # Copy mod zips
-          find mod -name "*.mod.zip" -exec cp {} out/ \;
+          # Copy mod zips preserving directory structure
+          # modList.json references paths like "mod/ModLoaderGui/ModLoaderGui.mod.zip"
+          # so we must keep the mod/ directory hierarchy
+          find mod -name "*.mod.zip" | while read modzip; do
+            dest_dir="out/$(dirname "$modzip")"
+            mkdir -p "$dest_dir"
+            cp "$modzip" "$dest_dir/"
+          done
 
           # Copy mod dist-for-type directories
           for moddir in mod/*/; do
@@ -287,7 +294,9 @@ jobs:
           done
 
           echo "=== Package contents ==="
-          find out -maxdepth 2 -type f | head -50
+          find out -maxdepth 3 -type f -name "*.mod.zip"
+          echo "---"
+          find out -maxdepth 2 -type f | head -20
           echo "..."
           echo "Total files: $(find out -type f | wc -l)"
 
