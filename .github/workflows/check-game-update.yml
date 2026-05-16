@@ -254,7 +254,25 @@ jobs:
       - name: Download ModLoader Package from release
         shell: bash
         run: |
-          curl -sL -o ModLoader.Package.zip "https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader/releases/download/2.100.1/ModLoader.Package.zip"
+          # Use this repository's modloader-* releases because upstream artifacts expire
+          # and the upstream release can be older than the current ModLoader master branch.
+          DOWNLOAD_URL=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases" | python3 -c "
+          import json, sys
+          releases = json.load(sys.stdin)
+          for r in releases:
+              if r['tag_name'].startswith('modloader-') and not r['draft']:
+                  for a in r.get('assets', []):
+                      if a['name'] == 'ModLoader.Package.zip':
+                          print(a['browser_download_url'])
+                          sys.exit(0)
+          print('NOT_FOUND')
+          ")
+          if [ "$DOWNLOAD_URL" = "NOT_FOUND" ]; then
+            echo "❌ No ModLoader Package release found. Run the 'Build ModLoader Package' workflow first."
+            exit 1
+          fi
+          echo "Downloading from: $DOWNLOAD_URL"
+          curl -sL -o ModLoader.Package.zip "$DOWNLOAD_URL"
           mkdir -p modloader-download
           unzip -o ModLoader.Package.zip -d modloader-download
           echo "ModLoader Package downloaded and extracted"
@@ -542,8 +560,27 @@ jobs:
           echo "总图片文件数: $(find game-res -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.gif' -o -name '*.webp' \) | wc -l)"
 
       - name: Download ModLoader Package from release
+        shell: bash
         run: |
-          curl -sL -o ModLoader.Package.zip "https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader/releases/download/2.100.1/ModLoader.Package.zip"
+          # Use this repository's modloader-* releases because upstream artifacts expire
+          # and the upstream release can be older than the current ModLoader master branch.
+          DOWNLOAD_URL=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases" | python3 -c "
+          import json, sys
+          releases = json.load(sys.stdin)
+          for r in releases:
+              if r['tag_name'].startswith('modloader-') and not r['draft']:
+                  for a in r.get('assets', []):
+                      if a['name'] == 'ModLoader.Package.zip':
+                          print(a['browser_download_url'])
+                          sys.exit(0)
+          print('NOT_FOUND')
+          ")
+          if [ "$DOWNLOAD_URL" = "NOT_FOUND" ]; then
+            echo "❌ No ModLoader Package release found. Run the 'Build ModLoader Package' workflow first."
+            exit 1
+          fi
+          echo "Downloading from: $DOWNLOAD_URL"
+          curl -sL -o ModLoader.Package.zip "$DOWNLOAD_URL"
           mkdir -p ModLoader
           unzip -o ModLoader.Package.zip -d ModLoader
           echo "ModLoader Package downloaded and extracted"
