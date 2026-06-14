@@ -207,12 +207,12 @@ class Replacer:
                             if "过时" in d.get('original', ''):
                                 continue
                             for char in d.get('original', ''):
-                                if emoji.is_emoji(char):
+                                if ord(char) > 0xFFFF:
                                     emojiDiffIdx += 1
                             continue
                         if d.get('original', '') == d.get('translation', ''):
                             for char in d.get('original', ''):
-                                if emoji.is_emoji(char):
+                                if ord(char) > 0xFFFF:
                                     emojiDiffIdx += 1
                             continue
 
@@ -220,7 +220,7 @@ class Replacer:
                         if pos is None:
                             logger.warning(f"{d['key']} 的 context 未包含 POS，跳过")
                             for char in d.get('original', ''):
-                                if emoji.is_emoji(char):
+                                if ord(char) > 0xFFFF:
                                     emojiDiffIdx += 1
                             continue
 
@@ -241,7 +241,7 @@ class Replacer:
                                     "t": d['translation']
                                 })
                                 for char in d['original']:
-                                    if emoji.is_emoji(char):
+                                    if ord(char) > 0xFFFF:
                                         emojiDiffIdx += 1
                                 continue
 
@@ -262,7 +262,7 @@ class Replacer:
                                         "t": translist[i].strip()
                                     })
                                     linepos += len(orilist[i]) + 1
-                                emojiDiffIdx += len(emoji.emoji_list(orilist[i]))
+                                emojiDiffIdx += sum(1 for c in orilist[i] if ord(c) > 0xFFFF)
                         else:
                             # JS：POS 为文件内绝对位置
                             d['original'] = d['original'].replace("\\n","\n")
@@ -280,7 +280,7 @@ class Replacer:
                                     "js": True
                                 })
                                 for char in d['original']:
-                                    if emoji.is_emoji(char):
+                                    if ord(char) > 0xFFFF:
                                         emojiDiffIdx += 1
                                 continue
 
@@ -302,7 +302,7 @@ class Replacer:
                                         "js": True
                                     })
                                     linepos += len(orilist[i]) + 1
-                                emojiDiffIdx += len(emoji.emoji_list(orilist[i]))
+                                emojiDiffIdx += sum(1 for c in orilist[i] if ord(c) > 0xFFFF)
 
         with open(self.translatedPath/"i18n.json",encoding="utf-8",mode="w") as fp:
             fp.write(json.dumps(i18n,ensure_ascii=False))
