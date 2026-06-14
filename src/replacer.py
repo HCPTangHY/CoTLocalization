@@ -166,7 +166,7 @@ class Replacer:
         def parse_pos_from_context(ctx: str):
             if not ctx:
                 return None
-            m = re.findall(r'<<POS:(\d+)>>', ctx)
+            m = re.findall(r'&lt;&lt;POS:(\d+)&gt;&gt;', ctx)
             return int(m[-1]) if m else None
 
         for root, dirs, files in os.walk(self.transPath):
