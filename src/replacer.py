@@ -29,13 +29,13 @@ class Replacer:
                 with open(f"{root.replace('trans','fetch')}\\{file}", "r", encoding="utf-8") as fp:
                     fetch_data = json.load(fp)
                 if "Passage" in root:
-                    with open(f"{root.replace('trans','marge_source')}\\{file.replace('.json','.twee')}","r",encoding="utf-8") as fp:
+                    with open(f"{root.replace('trans','marge_source')}\\{file.replace('.json','.twee')}","r",encoding="utf-8-sig") as fp:
                         file_content = fp.read()
                 elif "Widget" in root:
-                    with open(f"{root.replace('trans','source')}\\{file.replace('.json','.twee')}","r",encoding="utf-8") as fp:
+                    with open(f"{root.replace('trans','source')}\\{file.replace('.json','.twee')}","r",encoding="utf-8-sig") as fp:
                         file_content = fp.read()
                 elif "js"==root[-2]+root[-1]:
-                    with open(f"{root.replace('trans','source')}\\{file.replace('.json','.js')}","r",encoding="utf-8") as fp:
+                    with open(f"{root.replace('trans','source')}\\{file.replace('.json','.js')}","r",encoding="utf-8-sig") as fp:
                         file_content = fp.read()
                 else:
                     logger.error(f"no file {root}\{file}!")
@@ -76,7 +76,7 @@ class Replacer:
                         start = m.end()
                         passage_body_start_cache[passage_name] = start
                         return start
-                    # 兜底：朴素查找
+                    # 兆底：朴素查找
                     idx_name = file_content.find(f":: {passage_name}")
                     if idx_name != -1:
                         nl_idx = file_content.find("\n", idx_name)
@@ -103,7 +103,7 @@ class Replacer:
                 for entry in pzdata:
                     abs_pos = compute_abs_position(entry)
                     if abs_pos is None:
-                        # 尽量不依赖 fetch 的 position；但为保证健壮性，提供兜底
+                        # 尽量不依赖 fetch 的 position；但为保证健壮性，提供兆底
                         if entry['key'] in fetch_data:
                             positions_by_key[entry['key']] = fetch_data[entry['key']]['position']
                             logger.warning(f"{entry['key']} 的 context 中未找到 POS，回退到 fetch 位置")
@@ -162,11 +162,11 @@ class Replacer:
     def convert_to_i18n(self):
         i18n = {"typeB":{"TypeBOutputText":[],"TypeBInputStoryScript":[]}}
 
-        # 完全依赖 trans 中 context 的 &lt;&lt;POS:...&gt;&gt;，不再使用 hash_dict 位置
+        # 完全依赖 trans 中 context 的 <<POS:...>>，不再使用 hash_dict 位置
         def parse_pos_from_context(ctx: str):
             if not ctx:
                 return None
-            m = re.findall(r'&lt;&lt;POS:(\d+)&gt;&gt;', ctx)
+            m = re.findall(r'<<POS:(\d+)>>', ctx)
             return int(m[-1]) if m else None
 
         for root, dirs, files in os.walk(self.transPath):
