@@ -1,4 +1,5 @@
 import sys
+import re
 
 def ModLoader_inject(html_path):
         with open(html_path, 'r', encoding='utf-8') as file:
@@ -23,6 +24,9 @@ def ModLoader_inject(html_path):
             };
 </script>
 		""")
+        # Remove itch.io anti-hotlink script (causes APK WebView timeout in China)
+        html = re.sub(r'<script[^>]*src="https://static\.itch\.io/htmlgame\.js"[^>]*></script>', '', html)
+
         with open(html_path, 'w', encoding='utf-8') as file:
             file.write(html)
 
