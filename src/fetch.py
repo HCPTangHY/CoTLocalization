@@ -115,14 +115,14 @@ class Fetcher:
                 logger.info(f"parsing {file}")
                 hash_dict[file] = {}
                 if file.endswith(".twee"):
-                    with open(f"{root}\\{file}", "r", encoding="utf-8") as fp:
+                    with open(f"{root}/{file}", "r", encoding="utf-8") as fp:
                         parser = TweeParser()
                         parser.parse(fp.read())
                     parser.extracted_texts.sort(key=lambda x:x['position'])
                     fetchData = {}
                     for d in parser.extracted_texts:
                         fetchData[d['id']] = d
-                    with open(root.replace("marge_source","fetch")+"\\"+file.replace('.twee','.json'),encoding="utf-8",mode="w+") as fp:
+                    with open(root.replace("marge_source","fetch")+"/"+file.replace('.twee','.json'),encoding="utf-8",mode="w+") as fp:
                         fp.write(json.dumps(fetchData,ensure_ascii=False))
         os.makedirs(self.fetchPath/"Widgets", exist_ok=True)
         for root, dirs, files in os.walk(self.sourcePath/"Widgets"):
@@ -133,14 +133,14 @@ class Fetcher:
                 hash_dict[file] = {}
                 logger.info(f"parsing {file}")
                 if file.endswith(".twee"):
-                    with open(f"{root}\\{file}", "r", encoding="utf-8") as fp:
+                    with open(f"{root}/{file}", "r", encoding="utf-8") as fp:
                         parser = TweeParser()
                         parser.parse(fp.read())
                     parser.extracted_texts.sort(key=lambda x:x['position'])
                     fetchData = {}
                     for d in parser.extracted_texts:
                         fetchData[d['id']] = d
-                    with open(root.replace("source","fetch")+"\\"+file.replace('.twee','.json'),encoding="utf-8",mode="w+") as fp:
+                    with open(root.replace("source","fetch")+"/"+file.replace('.twee','.json'),encoding="utf-8",mode="w+") as fp:
                         fp.write(json.dumps(fetchData,ensure_ascii=False))
         os.makedirs(self.fetchPath/"js", exist_ok=True)
         for root, dirs, files in os.walk(self.sourcePath/"js"):
@@ -151,14 +151,14 @@ class Fetcher:
                 hash_dict[file] = {}
                 logger.info(f"parsing {file}")
                 if file.endswith(".js"):
-                    with open(f"{root}\\{file}", "r", encoding="utf-8") as fp:
+                    with open(f"{root}/{file}", "r", encoding="utf-8") as fp:
                         parser = JSParserV2()
                         parser.parse(fp.read())
                     parser.extracted_texts.sort(key=lambda x:x['position'])
                     fetchData = {}
                     for d in parser.extracted_texts:
                         fetchData[f"{file.replace('.js','')}_{d['id']}"] = d
-                    with open(root.replace("source","fetch")+"\\"+file.replace('.js','.json'),encoding="utf-8",mode="w+") as fp:
+                    with open(root.replace("source","fetch")+"/"+file.replace('.js','.json'),encoding="utf-8",mode="w+") as fp:
                         fp.write(json.dumps(fetchData,ensure_ascii=False))
         with open(self.fetchPath/"hash_dict.json", "w", encoding="utf-8") as fp:
             fp.write(json.dumps(hash_dict,ensure_ascii=False))
@@ -171,11 +171,11 @@ class Fetcher:
             for file in files:
                 # logger.info(f"parsing {file}")
                 try:
-                    with open(f"{self.fetchPath}\\Passages\\{file.replace('.twee','.json')}", "r", encoding="utf-8") as fp:
+                    with open(f"{self.fetchPath}/Passages/{file.replace('.twee','.json')}", "r", encoding="utf-8") as fp:
                         fetchData = json.loads(fp.read())
                 except:
                     fetchData = {}
-                with open(f"{root}\\{file}", "r", encoding="utf-8") as fp:
+                with open(f"{root}/{file}", "r", encoding="utf-8") as fp:
                     parser = TweeParser()
                     parser.parse(fp.read())
                 # parser.extracted_texts.sort(key=lambda x:x['position'])
@@ -223,13 +223,13 @@ class Fetcher:
                 if fetchData=={}:
                     for d in parser.extracted_texts:
                         fetchData[d['id']] = d
-                    with open(f"{DIR_FETCH/(self.version+'-changed')/'Passages'}\\{file.replace('.twee','.json')}",encoding="utf-8",mode="w+") as fp:
+                    with open(f"{DIR_FETCH/(self.version+'-changed')/'Passages'}/{file.replace('.twee','.json')}",encoding="utf-8",mode="w+") as fp:
                         fp.write(json.dumps(fetchData,ensure_ascii=False))
                 if newfileFlag:
-                    with open(f"{DIR_FETCH/(self.version+'-changed')/'Passages'}\\{file.replace('.twee','.json')}",encoding="utf-8",mode="w+") as fp:
+                    with open(f"{DIR_FETCH/(self.version+'-changed')/'Passages'}/{file.replace('.twee','.json')}",encoding="utf-8",mode="w+") as fp:
                         fp.write(json.dumps(newfetchData,ensure_ascii=False))
                 if oldfileFlag:
-                    with open(root.replace("marge_source","fetch")+"\\"+file.replace('.twee','.json'),encoding="utf-8",mode="w+") as fp:
+                    with open(root.replace("marge_source","fetch")+"/"+file.replace('.twee','.json'),encoding="utf-8",mode="w+") as fp:
                         fp.write(json.dumps(fetchData,ensure_ascii=False))
     def hash_update(self):
         # with open(self.fetchPath/"hash_dict.json", "r", encoding="utf-8") as fp:
@@ -239,7 +239,7 @@ class Fetcher:
             for file in files:
                 if "hash_dict" in file:continue
                 logger.info(f"updating {file}")
-                with open(f"{root}\\{file}", "r", encoding="utf-8") as fp:
+                with open(f"{root}/{file}", "r", encoding="utf-8") as fp:
                     filedata = json.loads(fp.read())
                 newhash_dict = {}
                 nowpassage = ""
@@ -272,7 +272,7 @@ class Fetcher:
             for file in files:
                 if "hash_dict" in file:continue
                 logger.info(f"convert {file}")
-                with open(f"{root}\\{file}", "r", encoding="utf-8") as fp:
+                with open(f"{root}/{file}", "r", encoding="utf-8") as fp:
                     filedata = json.loads(fp.read())
                 pzdata = []
                 for d in filedata:
@@ -298,10 +298,10 @@ class Fetcher:
                 #     pzdata = numpy.array(pzdata)
                 #     pzdata = numpy.array_split(pzdata,3)
                 #     for i in range(len(pzdata)):
-                #         with open(root.replace("fetch","pz_origin")+"\\"+file.replace(".json",f"_{i}.json"),encoding="utf-8",mode="w+") as fp:
+                #         with open(root.replace("fetch","pz_origin")+"/"+file.replace(".json",f"_{i}.json"),encoding="utf-8",mode="w+") as fp:
                 #             fp.write(json.dumps(pzdata[i].tolist(),ensure_ascii=False))
                 # else:
-                with open(root.replace("fetch","pz_origin")+"\\"+file,encoding="utf-8",mode="w+") as fp:
+                with open(root.replace("fetch","pz_origin")+"/"+file,encoding="utf-8",mode="w+") as fp:
                     fp.write(json.dumps(pzdata,ensure_ascii=False))
     def pz_token_update(self):
         logger.add('out.log')
@@ -310,11 +310,11 @@ class Fetcher:
                 # if '\js' in root :continue
                 logger.info(f"reading {file}")
                 try:
-                    with open(f"{root}\\{file}", "r", encoding="utf-8") as fp:
+                    with open(f"{root}/{file}", "r", encoding="utf-8") as fp:
                         filedata = json.loads(fp.read())
-                    with open(f"{root.replace('fetch','trans')}\\{file}", "r", encoding="utf-8") as fp:
+                    with open(f"{root.replace('fetch','trans')}/{file}", "r", encoding="utf-8") as fp:
                         pzdata = json.loads(fp.read())
-                    with open(f"{root.replace('fetch','pz_origin')}\\{file}", "r", encoding="utf-8") as fp:
+                    with open(f"{root.replace('fetch','pz_origin')}/{file}", "r", encoding="utf-8") as fp:
                         pzoridata = json.loads(fp.read())
                 except:
                     logger.error(f"no file {file}")
@@ -375,7 +375,7 @@ class Fetcher:
                 for i in result:
                     if i not in resultuni:
                         resultuni.append(i)
-                with open(f"{root.replace('fetch','trans')}\\{file}", "w", encoding="utf-8") as fp:
+                with open(f"{root.replace('fetch','trans')}/{file}", "w", encoding="utf-8") as fp:
                     fp.write(json.dumps(resultuni,ensure_ascii=False))
     
     def compare_source(self,version2):
@@ -391,7 +391,7 @@ class Fetcher:
             # 打印不同的文件
             print("不同的文件:")
             for name in comparison.diff_files + comparison.right_only:
-                dir = str(dir1).split("\\")[-1]
+                dir = str(dir1).split("/")[-1]
                 print(f"- {name}")
                 hash_file = hash_dict[name] if name in hash_dict else {}
                 used_new_string = []
@@ -492,7 +492,7 @@ class Fetcher:
             # 打印不同和新增的文件
             print("不同的文件(基于Key):")
             for name in comparison.diff_files + comparison.right_only:
-                dir = str(dir1).split("\\")[-1]
+                dir = str(dir1).split("/")[-1]
                 print(f"- {name}")
 
                 # 读取旧版抓取数据
