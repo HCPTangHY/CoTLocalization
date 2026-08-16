@@ -51,11 +51,52 @@ jobs:
           path: translated_source\${{ steps.detect.outputs.i18n_version }}\i18n.json
           if-no-files-found: error
 
+  check_modloader:
+    runs-on: ubuntu-latest
+    outputs:
+      needs_build: ${{ steps.check.outputs.needs_build }}
+    steps:
+      - name: Check for ModLoader release
+        id: check
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FOUND=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases" | python3 -c "
+          import json, sys
+          releases = json.load(sys.stdin)
+          for r in releases:
+              if r['tag_name'].startswith('modloader-') and not r['draft']:
+                  for a in r.get('assets', []):
+                      if a['name'] == 'ModLoader.Package.zip':
+                          print('found')
+                          sys.exit(0)
+          print('not_found')
+          ")
+          if [ "$FOUND" = "found" ]; then
+            echo "needs_build=false" >> $GITHUB_OUTPUT
+            echo "ModLoader release exists"
+          else
+            echo "needs_build=true" >> $GITHUB_OUTPUT
+            echo "No ModLoader release found, will trigger build"
+          fi
+
+  build_modloader:
+    needs: check_modloader
+    if: needs.check_modloader.outputs.needs_build == 'true'
+    uses: ./.github/workflows/build-modloader.yml
+    with:
+      ref: master
+    permissions:
+      contents: write
+
   package_mod:
     runs-on: windows-latest
     permissions:
       contents: write
-    needs: build_i18n
+    needs: [build_i18n, check_modloader, build_modloader]
+    if: ${{ !cancelled() && needs.build_i18n.result == 'success' && needs.check_modloader.result == 'success' && (needs.build_modloader.result == 'success' || needs.build_modloader.result == 'skipped') }}
     env:
       I18N_VERSION: ${{ needs.build_i18n.outputs.i18n_version }}
       CHINESE_VERSION: auto-nightly
