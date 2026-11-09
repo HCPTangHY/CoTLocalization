@@ -287,12 +287,12 @@ class Replacer:
                             linepos = pos
                             for i in range(len(translist)):
                                 if orilist[i].strip() == translist[i].strip():
-                                    linepos += len(orilist[i]) + 1
+                                    linepos += len(orilist[i]) + orilist[i].count("▲") + 1
                                 else:
                                     lineidx = 0
                                     for j in range(len(orilist[i])):
                                         if orilist[i][j].strip():
-                                            lineidx = j
+                                            lineidx = j + orilist[i][:j].count("▲")
                                             break
                                     i18n['typeB']['TypeBOutputText'].append({
                                         "pos": linepos + lineidx + emojiDiffIdx,
@@ -301,7 +301,7 @@ class Replacer:
                                         "fileName": passagename + ".js",
                                         "js": True
                                     })
-                                    linepos += len(orilist[i]) + 1
+                                    linepos += len(orilist[i]) + orilist[i].count("▲") + 1
                                 emojiDiffIdx += sum(1 for c in orilist[i] if ord(c) > 0xFFFF)
 
         with open(self.translatedPath/"i18n.json",encoding="utf-8",mode="w") as fp:
