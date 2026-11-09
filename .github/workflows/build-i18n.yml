@@ -44,6 +44,71 @@ jobs:
           echo "i18n_version=$ver" >> $env:GITHUB_OUTPUT
           Write-Host "Detected i18n version: $ver"
 
+      # --- JS 语法检查：模拟替换 + acorn 验证 ---
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Download story-export artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          repo: ${{ github.repository }}
+          workflow: check-game-update.yml
+          workflow_conclusion: success
+          name_is_regexp: true
+          name: story-export-.*
+          path: story-export-dl
+          search_artifacts: true
+        continue-on-error: true
+
+      - name: Extract JS sources from story-export
+        shell: pwsh
+        run: |
+          $zipFile = Get-ChildItem -Path "story-export-dl" -Filter "story_export.zip" -Recurse | Select-Object -First 1
+          if (!$zipFile) {
+            Write-Host "story_export.zip not found, skipping JS syntax check"
+            echo "SKIP_JS_CHECK=true" >> $env:GITHUB_ENV
+            exit 0
+          }
+          $ver = "${{ steps.detect.outputs.i18n_version }}"
+          $extractDir = "story-export-extract"
+          Expand-Archive -Path $zipFile.FullName -DestinationPath $extractDir -Force
+          # story-export zip 里嵌套了一层 zip
+          $innerZip = Get-ChildItem -Path $extractDir -Filter "story_export.zip" -Recurse | Select-Object -First 1
+          if ($innerZip) {
+            Expand-Archive -Path $innerZip.FullName -DestinationPath $extractDir -Force
+          }
+          # 找 js 目录
+          $jsDir = Get-ChildItem -Path $extractDir -Directory -Filter "js" -Recurse | Select-Object -First 1
+          if (!$jsDir) {
+            Write-Host "No js/ directory in story-export, skipping JS syntax check"
+            echo "SKIP_JS_CHECK=true" >> $env:GITHUB_ENV
+            exit 0
+          }
+          Copy-Item -Path $jsDir.FullName -Destination "source-js" -Recurse -Force
+          $jsCount = (Get-ChildItem -Path "source-js" -Filter "*.js" -Recurse).Count
+          Write-Host "Extracted $jsCount JS files from story-export"
+
+      - name: Simulate JS replacement
+        if: env.SKIP_JS_CHECK != 'true'
+        run: |
+          python src/verify_replace.py source-js "translated_source/${{ steps.detect.outputs.i18n_version }}/i18n.json" dist-js
+
+      - name: Verify JS syntax
+        if: env.SKIP_JS_CHECK != 'true'
+        shell: bash
+        run: |
+          npm install --no-save acorn
+          JS_FILES=$(find dist-js -name '*.js' 2>/dev/null)
+          if [ -z "$JS_FILES" ]; then
+            echo "No replaced JS files to check"
+            exit 0
+          fi
+          node src/verify_js.js $JS_FILES
+
+      # --- 上传产物 ---
       - name: Upload i18n.json artifact
         uses: actions/upload-artifact@v4
         with:
